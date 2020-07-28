@@ -19,7 +19,7 @@ Individual file converter for JSON
 By Fanghao Yang, 07/27/2020
 """
 
-import data2pcd.json2pcd as json2pcd
+import data2pcd.converter as json2pcd
 import click
 from pathlib import Path
 
@@ -29,7 +29,10 @@ from pathlib import Path
 @click.option('--pcd', help="The path of output PCD file")
 def convert(json, pcd):
     """Convert JSON to PCD file from command line"""
-    json2pcd.converter(Path(json), Path(pcd))
+    json_converter = json2pcd.Converter()
+    json_converter.convert(Path(json))
+    json_converter.export(Path(pcd))
+    json_converter.visualize()
     print(f"Successfully converted file from {json} to {pcd}")
 
 

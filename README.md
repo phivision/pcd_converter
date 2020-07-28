@@ -9,6 +9,7 @@ This tool has been tested under Ubuntu 18.04, Python 3.6 with Anaconda Environme
 * Update conda -> `conda activate pcd_converter`
 * Add conda-forge channels -> `conda config --add channels conda-forge`
 * Install customized Python-pcl module -> `conda install pcl python-pcl -c artemuk -c conda-forge`
+* Install other dependency modules -> `conda install click matplotlib`
 
 ## How to use this tool
 * After activation of corresponding conda env, run following command in root directory of this project, for example,
