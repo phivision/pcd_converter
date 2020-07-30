@@ -9,6 +9,8 @@ This tool has been tested under Ubuntu 18.04, Python 3.6 with Anaconda Environme
 * Update conda -> `conda activate pcd_converter`
 * Add conda-forge channels -> `conda config --add channels conda-forge`
 * Install customized Python-pcl module -> `conda install pcl python-pcl -c artemuk -c conda-forge`
+* Install Open3D library to get richer 3D processing functions -> `conda install -c open3d-admin open3d`
+* Install pillow for image processing -> `conda install -c open3d-admin open3d`
 * Install other dependency modules -> `conda install click matplotlib`
 
 ## How to use this tool
