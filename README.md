@@ -1,7 +1,9 @@
 # PCD Converter Tool
 Convert output JSON files from iOS data logger or other compatible formats to PCL compatible PCD format.
 
-This tool has been tested under Ubuntu 18.04, Python 3.6 with Anaconda Environment.
+And visualization tool is provided for quick checkup.
+
+This tool has been tested under Ubuntu 18.04 and MacOS 11, Python 3.6 with Anaconda Environment.
 
 ## Installation
 * Create a conda env -> `conda create -n pcd_converter python=3.6`
@@ -19,5 +21,8 @@ if you are using '~/path/input_file.json' as input and 'output_file.pcd' as outp
 ```shell script
 python convert.py --json ~/path/input_file.json --pcd output_file.pcd
 ```
-
+You may only visualize the JSON data without conversion
+```shell script
+python plot.py --json ~/path/input_file.json
+```
 This tool is developed by Fanghao Yang, Phi Vision Inc. 2020
