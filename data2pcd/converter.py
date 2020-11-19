@@ -51,6 +51,8 @@ class Converter:
         self.confidence_map = None
         self.feature_points = None
         self.point_cloud = None
+        self._max_depth = None
+        self._min_depth = None
         self._x = None
         self._y = None
         self._z = None
@@ -80,21 +82,21 @@ class Converter:
             self._z = np.zeros((self.map_row, self.map_col), dtype=np.float32)
             # TODO: this is only simplified algorithm which assume the Z euler angle is 0
             azimuth_deg = (np.arange(self.map_col) - self.map_col / 2.0) * self._cam_fov_deg / \
-                self.map_col + self._cam_euler_ang_deg[0]
+                          self.map_col + self._cam_euler_ang_deg[0]
             azimuth_rad = np.deg2rad(azimuth_deg)
             self._x -= self.depth_map * np.tan(azimuth_rad) + self._cam_pos[0]
             self._z -= self.depth_map + self._cam_pos[1]
             altitude_deg = (np.arange(self.map_row) - self.map_row / 2.0) * self._cam_fov_deg / \
-                self._img_aspect_ratio / self.map_row + self._cam_euler_ang_deg[1]
+                           self._img_aspect_ratio / self.map_row + self._cam_euler_ang_deg[1]
             altitude_rad = np.deg2rad(altitude_deg)
             self._y += self.depth_map * np.tan(altitude_rad.reshape(-1, 1)) + self._cam_pos[2]
             self.point_cloud = np.hstack((np.ravel(self._x).reshape(-1, 1),
-                                         np.ravel(self._y).reshape(-1, 1),
-                                         np.ravel(self._z).reshape(-1, 1)))
+                                          np.ravel(self._y).reshape(-1, 1),
+                                          np.ravel(self._z).reshape(-1, 1)))
         else:
             raise ValueError("Depth map data is not ready, cannot process!")
 
-    def convert(self, input_file: Path) -> None:
+    def load_json(self, input_file: Path) -> None:
         """Convert JSON input file to PCD output file
 
         Args:
@@ -105,24 +107,25 @@ class Converter:
         """
         with input_file.open(mode='r') as json_file:
             self._container = json.load(json_file)
-            self.feature_points = np.array(self._container["pointCloud"], dtype=np.float32)
+            # self.feature_points = np.array(self._container["pointCloud"], dtype=np.float32)
+            self._max_depth = self._container["maxDepth"]
+            self._min_depth = self._container["minDepth"]
             base64_keys = ["depthMapData", "confidenceMapData", "capturedImageData"]
             map_list = ["depth_map", "confidence_map", "image"]
             for key, img in zip(base64_keys, map_list):
                 binary_data = self.base64_decoder(key)
                 setattr(self, img, Image.open(io.BytesIO(binary_data)))
-            # TODO: revise the iOS code so that 2D array were used for depth and confidence
-            self.depth_map = np.array(self.depth_map)[:, :, 0]
+            self.depth_map = np.array(self.depth_map)[:, :, 0] \
+                / 255.0 * (self._max_depth - self._min_depth) + self._min_depth
             self.map_row = self.depth_map.shape[0]
             self.map_col = self.depth_map.shape[1]
             self._img_aspect_ratio = self.map_col / self.map_row
             self.confidence_map = np.array(self.confidence_map)[:, :, 0]
             self.image.thumbnail((self.map_col, self.map_row), Image.ANTIALIAS)
-            self.image = np.array(self.image)/255.0
-            self.generate_point_cloud()
+            self.image = np.array(self.image) / 255.0
 
     def export(self, output_file: Path):
-        """Export points as PCD format
+        """Export point clouds as PCD format
 
         Args:
             output_file: output path of PCD file
@@ -130,12 +133,15 @@ class Converter:
         Returns:
 
         """
+        # generate point cloud from depth image
+        self.generate_point_cloud()
         if self.feature_points is not None:
             # PCL only take float32 but by default, numpy is using double
             # here, explicitly using float32 is necessary
             pcd_feature_points = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(self.feature_points))
             pcd_cloud_points = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(self.point_cloud))
-            pcd_cloud_points.colors = o3d.utility.Vector3dVector(self.image.reshape(self.map_row*self.map_col, 4)[:, :3])
+            pcd_cloud_points.colors = o3d.utility.Vector3dVector(
+                self.image.reshape(self.map_row * self.map_col, 4)[:, :3])
             file_name = output_file.name
             feature_file = f"feature_{file_name}"
             cloud_file = f"cloud_{file_name}"

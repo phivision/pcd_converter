@@ -14,7 +14,7 @@
 # from Phi Vision, Inc.
 
 """
-Individual file converter for JSON
+Convert JSON file and plot the data
 
 By Fanghao Yang, 07/27/2020
 """
@@ -26,16 +26,13 @@ from pathlib import Path
 
 @click.command()
 @click.option('--json', help="The path of input JSON file")
-@click.option('--pcd', help="The path of output PCD file")
-def convert(json, pcd):
-    """Convert JSON to PCD file from command line"""
+def plot(json):
+    """Plot JSON from command line"""
     json_converter = json2pcd.Converter()
     json_converter.load_json(Path(json))
-    json_converter.export(Path(pcd))
-    # json_converter.visualize()
-    print(f"Successfully converted file from {json} to {pcd}")
+    json_converter.visualize()
 
 
 if __name__ == "__main__":
     # execute only if run as a script
-    convert()
+    plot()
