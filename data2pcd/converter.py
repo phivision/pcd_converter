@@ -24,6 +24,7 @@ import open3d as o3d
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import rembg.bg as bg
 import io
 from pathlib import Path
 from PIL import Image
@@ -36,6 +37,8 @@ DEFAULT_CAM_EULER_ANG = (0.0, 0.0, 0.0)
 
 class Converter:
     """A tool to convert raw data to PCD format and contains intermediate data for analyze"""
+    # Threshold to separate human from background
+    MASK_THRESHOLD = 196
 
     def __init__(self, cam_fov: float = 58.986):
         """Initialize attributes and camera parameters
@@ -51,6 +54,7 @@ class Converter:
         self.confidence_map = None
         self.feature_points = None
         self.point_cloud = None
+        self.mask = None
         self._max_depth = None
         self._min_depth = None
         self._x = None
@@ -96,6 +100,16 @@ class Converter:
         else:
             raise ValueError("Depth map data is not ready, cannot process!")
 
+    def generate_mask(self):
+        """
+        Use U2NET to generate mask for background removal
+        """
+        model = bg.get_model("u2net")
+        mask = bg.detect.predict(model, self.image).convert("L").resize((self.image.shape[1],
+                                                                         self.image.shape[0]),
+                                                                        Image.LANCZOS)
+        self.mask = np.asarray(mask)
+
     def load_json(self, input_file: Path) -> None:
         """Convert JSON input file to PCD output file
 
@@ -107,7 +121,8 @@ class Converter:
         """
         with input_file.open(mode='r') as json_file:
             self._container = json.load(json_file)
-            # self.feature_points = np.array(self._container["pointCloud"], dtype=np.float32)
+            if "pointCloud" in self._container:
+                self.feature_points = np.array(self._container["pointCloud"], dtype=np.float32)
             self._max_depth = self._container["maxDepth"]
             self._min_depth = self._container["minDepth"]
             base64_keys = ["depthMapData", "confidenceMapData", "capturedImageData"]
@@ -123,8 +138,22 @@ class Converter:
             self.confidence_map = np.array(self.confidence_map)[:, :, 0]
             self.image.thumbnail((self.map_col, self.map_row), Image.ANTIALIAS)
             self.image = np.array(self.image) / 255.0
+            self.generate_mask()
 
-    def export(self, output_file: Path):
+    def export_depth(self, output_file: Path):
+        """Export depth as Numpy binary file
+
+        Args:
+            output_file: Path
+
+        """
+        with output_file.open(mode='w') as depth_file:
+            # remove human background and export depth of only human area
+            bg_removed = self.depth_map.copy()
+            bg_removed[self.mask < self.MASK_THRESHOLD] = self.depth_map.max() * 2
+            np.save(depth_file.name, bg_removed)
+
+    def export_pcd(self, output_file: Path):
         """Export point clouds as PCD format
 
         Args:
@@ -160,4 +189,7 @@ class Converter:
             plt.show()
             plt.imshow(self.image)
             print(f"The size of rgb image: {self.image.shape}")
+            plt.show()
+            plt.imshow(self.mask)
+            print(f"The size of background mask: {self.mask.shape}")
             plt.show()

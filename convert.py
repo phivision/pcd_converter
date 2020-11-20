@@ -27,13 +27,17 @@ from pathlib import Path
 @click.command()
 @click.option('--json', help="The path of input JSON file")
 @click.option('--pcd', help="The path of output PCD file")
-def convert(json, pcd):
+@click.option('--depth', help="The path of output depth npy file")
+def convert(json, pcd, depth):
     """Convert JSON to PCD file from command line"""
     json_converter = json2pcd.Converter()
     json_converter.load_json(Path(json))
-    json_converter.export(Path(pcd))
-    # json_converter.visualize()
-    print(f"Successfully converted file from {json} to {pcd}")
+    if pcd:
+        json_converter.export_pcd(Path(pcd))
+        print(f"Successfully converted point cloud data from {json} to {pcd}")
+    if depth:
+        json_converter.export_depth(Path(depth))
+        print(f"Successfully converted depth data from {json} to {pcd}")
 
 
 if __name__ == "__main__":
