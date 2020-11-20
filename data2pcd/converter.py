@@ -78,22 +78,32 @@ class Converter:
         """
         return base64.decodebytes(self._container[key].encode('utf-8'))
 
-    def generate_point_cloud(self):
-        """Generate point cloud from depth map"""
+    def generate_point_cloud(self, background=True):
+        """Generate point cloud from depth map
+
+        Args:
+            background: if true, keep background, if false, remove background
+
+        """
         if self.depth_map is not None:
+            if background:
+                output_data = self.depth_map
+            else:
+                output_data = self.depth_map.copy()
+                output_data[self.mask < self.MASK_THRESHOLD] = self.depth_map.max() * 2
             self._x = np.zeros((self.map_row, self.map_col), dtype=np.float32)
             self._y = np.zeros((self.map_row, self.map_col), dtype=np.float32)
             self._z = np.zeros((self.map_row, self.map_col), dtype=np.float32)
             # TODO: this is only simplified algorithm which assume the Z euler angle is 0
             azimuth_deg = (np.arange(self.map_col) - self.map_col / 2.0) * self._cam_fov_deg / \
-                          self.map_col + self._cam_euler_ang_deg[0]
+                self.map_col + self._cam_euler_ang_deg[0]
             azimuth_rad = np.deg2rad(azimuth_deg)
-            self._x -= self.depth_map * np.tan(azimuth_rad) + self._cam_pos[0]
-            self._z -= self.depth_map + self._cam_pos[1]
+            self._x -= output_data * np.tan(azimuth_rad) + self._cam_pos[0]
+            self._z -= output_data + self._cam_pos[1]
             altitude_deg = (np.arange(self.map_row) - self.map_row / 2.0) * self._cam_fov_deg / \
-                           self._img_aspect_ratio / self.map_row + self._cam_euler_ang_deg[1]
+                self._img_aspect_ratio / self.map_row + self._cam_euler_ang_deg[1]
             altitude_rad = np.deg2rad(altitude_deg)
-            self._y += self.depth_map * np.tan(altitude_rad.reshape(-1, 1)) + self._cam_pos[2]
+            self._y += output_data * np.tan(altitude_rad.reshape(-1, 1)) + self._cam_pos[2]
             self.point_cloud = np.hstack((np.ravel(self._x).reshape(-1, 1),
                                           np.ravel(self._y).reshape(-1, 1),
                                           np.ravel(self._z).reshape(-1, 1)))
@@ -101,9 +111,7 @@ class Converter:
             raise ValueError("Depth map data is not ready, cannot process!")
 
     def generate_mask(self):
-        """
-        Use U2NET to generate mask for background removal
-        """
+        """Use U2NET to generate mask for background removal"""
         model = bg.get_model("u2net")
         mask = bg.detect.predict(model, self.image).convert("L").resize((self.image.shape[1],
                                                                          self.image.shape[0]),
@@ -140,30 +148,35 @@ class Converter:
             self.image = np.array(self.image) / 255.0
             self.generate_mask()
 
-    def export_depth(self, output_file: Path):
+    def export_depth(self, output_file: Path, background=True):
         """Export depth as Numpy binary file
 
         Args:
             output_file: Path
+            background: if true, keep background, if false, remove background
 
         """
         with output_file.open(mode='w') as depth_file:
             # remove human background and export depth of only human area
-            bg_removed = self.depth_map.copy()
-            bg_removed[self.mask < self.MASK_THRESHOLD] = self.depth_map.max() * 2
-            np.save(depth_file.name, bg_removed)
+            if not background:
+                bg_removed = self.depth_map.copy()
+                bg_removed[self.mask < self.MASK_THRESHOLD] = self.depth_map.max() * 2
+                np.save(depth_file.name, bg_removed)
+            else:
+                np.save(depth_file.name, self.depth_map)
 
-    def export_pcd(self, output_file: Path):
+    def export_pcd(self, output_file: Path, background=True):
         """Export point clouds as PCD format
 
         Args:
             output_file: output path of PCD file
+            background: if true, keep background, if false, remove background
 
         Returns:
 
         """
         # generate point cloud from depth image
-        self.generate_point_cloud()
+        self.generate_point_cloud(background=background)
         if self.feature_points is not None:
             # PCL only take float32 but by default, numpy is using double
             # here, explicitly using float32 is necessary
