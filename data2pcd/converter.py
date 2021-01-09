@@ -33,6 +33,8 @@ from PIL import Image
 DEFAULT_IMG_ASPECT_RATIO = 4.0 / 3.0
 DEFAULT_CAM_POS = (0.0, 0.0, 0.0)
 DEFAULT_CAM_EULER_ANG = (0.0, 0.0, 0.0)
+# iOS lidar max range
+TARGET_MAX_DEPTH = 5.0
 
 
 class Converter:
@@ -160,7 +162,7 @@ class Converter:
             # remove human background and export depth of only human area
             if not background:
                 bg_removed = self.depth_map.copy()
-                bg_removed[self.mask < self.MASK_THRESHOLD] = self.depth_map.max() * 2
+                bg_removed[self.mask < self.MASK_THRESHOLD] = TARGET_MAX_DEPTH
                 np.save(depth_file.name, bg_removed)
             else:
                 np.save(depth_file.name, self.depth_map)
