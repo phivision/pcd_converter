@@ -25,6 +25,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import rembg.bg as bg
+from .bg_remover import remove_rgbd_bg
 import io
 from pathlib import Path
 from PIL import Image
@@ -63,6 +64,7 @@ class Converter:
         self._y = None
         self._z = None
         self.image = None
+        self.image_float = None
         self._container = None
         self._cam_fov_deg = cam_fov
         self._cam_pos = DEFAULT_CAM_POS
@@ -112,13 +114,18 @@ class Converter:
         else:
             raise ValueError("Depth map data is not ready, cannot process!")
 
-    def generate_mask(self):
+    def generate_mask(self, method='u2net'):
         """Use U2NET to generate mask for background removal"""
-        model = bg.get_model("u2net")
-        mask = bg.detect.predict(model, self.image).convert("L").resize((self.image.shape[1],
-                                                                         self.image.shape[0]),
-                                                                        Image.LANCZOS)
-        self.mask = np.asarray(mask)
+        if method == 'u2net':
+            model = bg.get_model("u2net")
+            mask = bg.detect.predict(model, self.image_float).convert("L").resize((self.image_float.shape[1],
+                                                                                   self.image_float.shape[0]),
+                                                                                  Image.LANCZOS)
+            self.mask = np.asarray(mask)
+        elif method == 'custom':
+            self.mask = remove_rgbd_bg(np.array(self.image.convert("RGB")), self.depth_map)
+        else:
+            raise(ValueError('Do not support this type of method'))
 
     def load_json(self, input_file: Path) -> None:
         """Convert JSON input file to PCD output file
@@ -147,21 +154,22 @@ class Converter:
             self._img_aspect_ratio = self.map_col / self.map_row
             self.confidence_map = np.array(self.confidence_map)[:, :, 0]
             self.image.thumbnail((self.map_col, self.map_row), Image.ANTIALIAS)
-            self.image = np.array(self.image) / 255.0
-            self.generate_mask()
+            self.image_float = np.array(self.image) / 255.0
 
-    def export_depth(self, output_file: Path, background=True):
+    def export_depth(self, output_file: Path, background=True, method='u2net'):
         """Export depth as Numpy binary file
 
         Args:
             output_file: Path
             background: if true, keep background, if false, remove background
+            method: method to remove background
 
         """
         with output_file.open(mode='w') as depth_file:
             # remove human background and export depth of only human area
             if not background:
                 bg_removed = self.depth_map.copy()
+                self.generate_mask(method=method)
                 bg_removed[self.mask < self.MASK_THRESHOLD] = TARGET_MAX_DEPTH
                 np.save(depth_file.name, bg_removed)
             else:
@@ -185,7 +193,7 @@ class Converter:
             pcd_feature_points = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(self.feature_points))
             pcd_cloud_points = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(self.point_cloud))
             pcd_cloud_points.colors = o3d.utility.Vector3dVector(
-                self.image.reshape(self.map_row * self.map_col, 4)[:, :3])
+                self.image_float.reshape(self.map_row * self.map_col, 4)[:, :3])
             file_name = output_file.name
             feature_file = f"feature_{file_name}"
             cloud_file = f"cloud_{file_name}"

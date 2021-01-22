@@ -29,7 +29,8 @@ from pathlib import Path
 @click.option('--pcd', help="The path of output PCD file")
 @click.option('--depth', help="The path of output depth npy file")
 @click.option('--background', type=bool, default=True, help="If keep the background")
-def convert(json, pcd, depth, background):
+@click.option('--method', default='u2net', help="method to remove background")
+def convert(json, pcd, depth, background, method):
     """Convert JSON to PCD file from command line"""
     json_converter = json2pcd.Converter()
     json_converter.load_json(Path(json))
@@ -37,7 +38,7 @@ def convert(json, pcd, depth, background):
         json_converter.export_pcd(Path(pcd), background=background)
         print(f"Successfully converted point cloud data from {json} to {pcd}")
     if depth:
-        json_converter.export_depth(Path(depth), background=background)
+        json_converter.export_depth(Path(depth), background=background, method=method)
         print(f"Successfully converted depth data from {json} to {depth}")
 
 
