@@ -25,7 +25,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import rembg.bg as bg
-from .bg_remover import remove_rgbd_bg
+from .bg_remover import remove_rgbd_bg, subtract_bg
 import io
 from pathlib import Path
 from PIL import Image
@@ -70,6 +70,8 @@ class Converter:
         self._cam_pos = DEFAULT_CAM_POS
         self._cam_euler_ang_deg = DEFAULT_CAM_EULER_ANG
         self._img_aspect_ratio = DEFAULT_IMG_ASPECT_RATIO
+        self._background = None
+        self._bg_std = None
 
     def base64_decoder(self, key: str) -> bytes:
         """Decode base64 data in JSON dict
@@ -82,17 +84,32 @@ class Converter:
         """
         return base64.decodebytes(self._container[key].encode('utf-8'))
 
-    def generate_point_cloud(self, background=True):
+    def set_background(self, background, std):
+        """Set a static background for background subtraction
+
+        Args:
+            background: static background
+            std: stand deviation of learned background
+
+        Returns:
+
+        """
+        self._background = background
+        self._bg_std = std
+
+    def generate_point_cloud(self, use_bg=True, method='u2net'):
         """Generate point cloud from depth map
 
         Args:
-            background: if true, keep background, if false, remove background
+            use_bg: if true, keep background, if false, remove background
+            method: method to remove background
 
         """
         if self.depth_map is not None:
-            if background:
+            if use_bg:
                 output_data = self.depth_map
             else:
+                self.generate_mask(method=method)
                 output_data = self.depth_map.copy()
                 output_data[self.mask < self.MASK_THRESHOLD] = self.depth_map.max() * 2
             self._x = np.zeros((self.map_row, self.map_col), dtype=np.float32)
@@ -121,9 +138,17 @@ class Converter:
             mask = bg.detect.predict(model, self.image_float).convert("L").resize((self.image_float.shape[1],
                                                                                    self.image_float.shape[0]),
                                                                                   Image.LANCZOS)
-            self.mask = np.asarray(mask / 255.0)
-        elif method == 'custom':
+            self.mask = np.asarray(mask) / 255.0
+        elif method == 'dynamic':
             self.mask = remove_rgbd_bg(np.array(self.image.convert("RGB")), self.depth_map)
+        elif method == 'static':
+            if self._background is not None and self._bg_std is not None:
+                self.mask = subtract_bg(np.array(self.image.convert("RGB")),
+                                        self.depth_map,
+                                        self._background,
+                                        self._bg_std)
+            else:
+                raise(ValueError("Do not has background data to process input image!"))
         else:
             raise(ValueError('Do not support this type of method'))
 
@@ -156,37 +181,40 @@ class Converter:
             self.image.thumbnail((self.map_col, self.map_row), Image.ANTIALIAS)
             self.image_float = np.array(self.image) / 255.0
 
-    def export_depth(self, output_file: Path, background=True, method='u2net'):
+    def export_depth(self, output_file: Path, use_bg=True, method='u2net'):
         """Export depth as Numpy binary file
 
         Args:
             output_file: Path
-            background: if true, keep background, if false, remove background
+            use_bg: if true, keep background, if false, remove background
             method: method to remove background
 
         """
         with output_file.open(mode='w') as depth_file:
             # remove human background and export depth of only human area
-            if not background:
+            if not use_bg:
                 bg_removed = self.depth_map.copy()
                 self.generate_mask(method=method)
+                depth_shift = TARGET_MAX_DEPTH/2.0 - np.mean(bg_removed[self.mask >= self.MASK_THRESHOLD])
+                bg_removed[self.mask >= self.MASK_THRESHOLD] += depth_shift
                 bg_removed[self.mask < self.MASK_THRESHOLD] = TARGET_MAX_DEPTH
                 np.save(depth_file.name, bg_removed)
             else:
                 np.save(depth_file.name, self.depth_map)
 
-    def export_pcd(self, output_file: Path, background=True):
+    def export_pcd(self, output_file: Path, use_bg=True, method='u2net'):
         """Export point clouds as PCD format
 
         Args:
             output_file: output path of PCD file
-            background: if true, keep background, if false, remove background
+            use_bg: if true, keep background, if false, remove background
+            method: method to remove background
 
         Returns:
 
         """
         # generate point cloud from depth image
-        self.generate_point_cloud(background=background)
+        self.generate_point_cloud(use_bg=use_bg)
         if self.feature_points is not None:
             # PCL only take float32 but by default, numpy is using double
             # here, explicitly using float32 is necessary
@@ -227,8 +255,8 @@ class Converter:
                 print(f"The size of confidence map: {self.confidence_map.shape}")
                 plt.show()
             if image:
-                plt.imshow(self.image)
-                print(f"The size of rgb image: {self.image.size}")
+                plt.imshow(self.image_float)
+                print(f"The size of rgb image: {self.image_float.shape}")
                 plt.show()
             if self.mask and mask:
                 plt.imshow(self.mask)

@@ -20,7 +20,9 @@ By Fanghao Yang, 07/27/2020
 """
 
 import data2pcd.converter as json2pcd
+from data2pcd.bg_remover import learning_bg
 import click
+from copy import copy
 from pathlib import Path
 
 
@@ -28,17 +30,29 @@ from pathlib import Path
 @click.option('--json', help="The path of input JSON file")
 @click.option('--pcd', help="The path of output PCD file")
 @click.option('--depth', help="The path of output depth npy file")
-@click.option('--background', type=bool, default=True, help="If keep the background")
-@click.option('--method', default='u2net', help="method to remove background")
-def convert(json, pcd, depth, background, method):
+@click.option('--use_bg', type=bool, default=True, help="If keep the background")
+@click.option('--bg_path', help="The path to background maps")
+@click.option('--method', default='u2net', help="method to remove background, "
+                                                "including 'u2net', 'dynamic' and 'static'")
+def convert(json, pcd, depth, use_bg, bg_path, method):
     """Convert JSON to PCD file from command line"""
     json_converter = json2pcd.Converter()
     json_converter.load_json(Path(json))
     if pcd:
-        json_converter.export_pcd(Path(pcd), background=background)
+        json_converter.export_pcd(Path(pcd), use_bg=use_bg)
         print(f"Successfully converted point cloud data from {json} to {pcd}")
     if depth:
-        json_converter.export_depth(Path(depth), background=background, method=method)
+        if bg_path and method == 'static':
+            bg_files = Path(bg_path).glob("*.json")
+            bg_converter = json2pcd.Converter()
+            bg_list = []
+            for bg_file in bg_files:
+                bg_converter.load_json(bg_file)
+                bg_list.append(copy(bg_converter.depth_map))
+            bg, bg_std = learning_bg(bg_list)
+            json_converter.set_background(bg, bg_std)
+            print("Static background is loaded to the converter!")
+        json_converter.export_depth(Path(depth), use_bg=use_bg, method=method)
         print(f"Successfully converted depth data from {json} to {depth}")
 
 
