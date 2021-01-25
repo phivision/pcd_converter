@@ -41,7 +41,7 @@ TARGET_MAX_DEPTH = 5.0
 class Converter:
     """A tool to convert raw data to PCD format and contains intermediate data for analyze"""
     # Threshold to separate human from background
-    MASK_THRESHOLD = 196
+    MASK_THRESHOLD = 0.75
 
     def __init__(self, cam_fov: float = 58.986):
         """Initialize attributes and camera parameters
@@ -121,7 +121,7 @@ class Converter:
             mask = bg.detect.predict(model, self.image_float).convert("L").resize((self.image_float.shape[1],
                                                                                    self.image_float.shape[0]),
                                                                                   Image.LANCZOS)
-            self.mask = np.asarray(mask)
+            self.mask = np.asarray(mask / 255.0)
         elif method == 'custom':
             self.mask = remove_rgbd_bg(np.array(self.image.convert("RGB")), self.depth_map)
         else:
@@ -200,19 +200,37 @@ class Converter:
             o3d.io.write_point_cloud(f"{output_file.parent}/{feature_file}", pcd_feature_points)
             o3d.io.write_point_cloud(f"{output_file.parent}/{cloud_file}", pcd_cloud_points)
 
-    def visualize(self):
-        """Visualize intermediate map and point cloud for analyzsis and debugging"""
+    def visualize(self,
+                  depth=True,
+                  image=True,
+                  confidence=True,
+                  mask=True):
+        """Visualize intermediate map and point cloud for analysis and debugging
+
+        Args:
+            depth: if include depth map
+            image: if include rgb image
+            confidence: in include confidence map
+            mask: if include mask
+
+        Returns:
+
+        """
         # for debugging only
         if self.image is not None:
-            plt.imshow(self.depth_map)
-            print(f"The size of depth map: {self.depth_map.shape}")
-            plt.show()
-            plt.imshow(self.confidence_map)
-            print(f"The size of confidence map: {self.confidence_map.shape}")
-            plt.show()
-            plt.imshow(self.image)
-            print(f"The size of rgb image: {self.image.shape}")
-            plt.show()
-            plt.imshow(self.mask)
-            print(f"The size of background mask: {self.mask.shape}")
-            plt.show()
+            if depth:
+                plt.imshow(self.depth_map)
+                print(f"The size of depth map: {self.depth_map.shape}")
+                plt.show()
+            if confidence:
+                plt.imshow(self.confidence_map)
+                print(f"The size of confidence map: {self.confidence_map.shape}")
+                plt.show()
+            if image:
+                plt.imshow(self.image)
+                print(f"The size of rgb image: {self.image.size}")
+                plt.show()
+            if self.mask and mask:
+                plt.imshow(self.mask)
+                print(f"The size of background mask: {self.mask.shape}")
+                plt.show()

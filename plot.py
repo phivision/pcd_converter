@@ -21,16 +21,29 @@ By Fanghao Yang, 07/27/2020
 
 import data2pcd.converter as json2pcd
 import click
+import os
 from pathlib import Path
 
 
 @click.command()
 @click.option('--json', help="The path of input JSON file")
-def plot(json):
+@click.option('--depth', default=True, type=bool, help="If plot depth map")
+@click.option('--image', default=True, type=bool, help="If plot rgb image")
+@click.option('--confidence', default=False, type=bool, help="If plot confidence map")
+@click.option('--mask', default=False, type=bool, help="If plot mask")
+def plot(json, depth, image, confidence, mask):
     """Plot JSON from command line"""
     json_converter = json2pcd.Converter()
-    json_converter.load_json(Path(json))
-    json_converter.visualize()
+    json_path = Path(json)
+    if json_path.is_dir():
+        json_files = sorted(json_path.glob("*.json"), key=os.path.getmtime)
+        for json_file in json_files:
+            print(f"Plot json file: {json_file}")
+            json_converter.load_json(Path(json_file))
+            json_converter.visualize(depth=depth, image=image, confidence=confidence, mask=mask)
+    else:
+        json_converter.load_json(Path(json))
+        json_converter.visualize(depth=depth, image=image, confidence=confidence, mask=mask)
 
 
 if __name__ == "__main__":
