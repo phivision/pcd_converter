@@ -40,10 +40,18 @@ def plot(json, depth, image, confidence, mask):
         for json_file in json_files:
             print(f"Plot json file: {json_file}")
             json_converter.load_json(Path(json_file))
-            json_converter.visualize(depth=depth, image=image, confidence=confidence, mask=mask)
+            json_converter.visualize(name=str(json_file.stem),
+                                     depth=depth,
+                                     image=image,
+                                     confidence=confidence,
+                                     mask=mask)
     else:
         json_converter.load_json(Path(json))
-        json_converter.visualize(depth=depth, image=image, confidence=confidence, mask=mask)
+        json_converter.visualize(name=str(json.stem),
+                                 depth=depth,
+                                 image=image,
+                                 confidence=confidence,
+                                 mask=mask)
 
 
 if __name__ == "__main__":

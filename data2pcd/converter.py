@@ -229,6 +229,7 @@ class Converter:
             o3d.io.write_point_cloud(f"{output_file.parent}/{cloud_file}", pcd_cloud_points)
 
     def visualize(self,
+                  name='',
                   depth=True,
                   image=True,
                   confidence=True,
@@ -236,6 +237,7 @@ class Converter:
         """Visualize intermediate map and point cloud for analysis and debugging
 
         Args:
+            name: the name of the plots
             depth: if include depth map
             image: if include rgb image
             confidence: in include confidence map
@@ -248,17 +250,21 @@ class Converter:
         if self.image is not None:
             if depth:
                 plt.imshow(self.depth_map)
+                plt.title(name)
                 print(f"The size of depth map: {self.depth_map.shape}")
                 plt.show()
             if confidence:
                 plt.imshow(self.confidence_map)
+                plt.title(name)
                 print(f"The size of confidence map: {self.confidence_map.shape}")
                 plt.show()
             if image:
                 plt.imshow(self.image_float)
+                plt.title(name)
                 print(f"The size of rgb image: {self.image_float.shape}")
                 plt.show()
             if self.mask and mask:
                 plt.imshow(self.mask)
+                plt.title(name)
                 print(f"The size of background mask: {self.mask.shape}")
                 plt.show()
