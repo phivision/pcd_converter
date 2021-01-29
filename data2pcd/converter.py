@@ -181,11 +181,15 @@ class Converter:
             self.image.thumbnail((self.map_col, self.map_row), Image.ANTIALIAS)
             self.image_float = np.array(self.image) / 255.0
 
-    def export_depth(self, output_file: Path, use_bg=True, method='u2net'):
+    def export_depth(self, output_file: Path,
+                     norm=True,
+                     use_bg=True,
+                     method='u2net'):
         """Export depth as Numpy binary file
 
         Args:
             output_file: Path
+            norm: if normalize the center of human body to the center of target max depth
             use_bg: if true, keep background, if false, remove background
             method: method to remove background
 
@@ -195,8 +199,9 @@ class Converter:
             if not use_bg:
                 bg_removed = self.depth_map.copy()
                 self.generate_mask(method=method)
-                depth_shift = TARGET_MAX_DEPTH/2.0 - np.mean(bg_removed[self.mask >= self.MASK_THRESHOLD])
-                bg_removed[self.mask >= self.MASK_THRESHOLD] += depth_shift
+                if norm:
+                    depth_shift = TARGET_MAX_DEPTH/2.0 - np.mean(bg_removed[self.mask >= self.MASK_THRESHOLD])
+                    bg_removed[self.mask >= self.MASK_THRESHOLD] += depth_shift
                 bg_removed[self.mask < self.MASK_THRESHOLD] = TARGET_MAX_DEPTH
                 np.save(depth_file.name, bg_removed)
             else:
@@ -214,7 +219,7 @@ class Converter:
 
         """
         # generate point cloud from depth image
-        self.generate_point_cloud(use_bg=use_bg)
+        self.generate_point_cloud(use_bg=use_bg, method=method)
         if self.feature_points is not None:
             # PCL only take float32 but by default, numpy is using double
             # here, explicitly using float32 is necessary

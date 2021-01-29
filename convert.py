@@ -22,6 +22,7 @@ By Fanghao Yang, 07/27/2020
 import data2pcd.converter as json2pcd
 from data2pcd.bg_remover import learning_bg
 import click
+import numpy as np
 from copy import copy
 from pathlib import Path
 
@@ -43,13 +44,27 @@ def convert(json, pcd, depth, use_bg, bg_path, method):
         print(f"Successfully converted point cloud data from {json} to {pcd}")
     if depth:
         if bg_path and method == 'static':
-            bg_files = Path(bg_path).glob("*.json")
-            bg_converter = json2pcd.Converter()
-            bg_list = []
-            for bg_file in bg_files:
-                bg_converter.load_json(bg_file)
-                bg_list.append(copy(bg_converter.depth_map))
-            bg, bg_std = learning_bg(bg_list)
+            bg_data = Path(bg_path, 'bg.npy')
+            std_data = Path(bg_path, 'std.npy')
+            if bg_data.exists() and std_data.exists():
+                # if background data exists, load
+                with bg_data.open(mode='rb'):
+                    bg = np.load(bg_data.name)
+                with std_data.open(mode='rb'):
+                    bg_std = np.load(std_data.name)
+            else:
+                bg_files = Path(bg_path).glob("*.json")
+                bg_converter = json2pcd.Converter()
+                bg_list = []
+                for bg_file in bg_files:
+                    bg_converter.load_json(bg_file)
+                    bg_list.append(copy(bg_converter.depth_map))
+                # if not, learn it
+                bg, bg_std = learning_bg(bg_list)
+                with bg_data.open(mode='w'):
+                    np.save(bg_data.name, bg)
+                with std_data.open(mode='w'):
+                    np.save(std_data.name, bg_std)
             json_converter.set_background(bg, bg_std)
             print("Static background is loaded to the converter!")
         json_converter.export_depth(Path(depth), use_bg=use_bg, method=method)
