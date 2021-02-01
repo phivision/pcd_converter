@@ -34,8 +34,15 @@ from pathlib import Path
 @click.option('--use_bg', type=bool, default=True, help="If keep the background")
 @click.option('--bg_path', help="The path to background maps")
 @click.option('--method', default='u2net', help="method to remove background, "
-                                                "including 'u2net', 'dynamic' and 'static'")
-def convert(json, pcd, depth, use_bg, bg_path, method):
+                                                "including 'u2net', 'dynamic', 'static' and 'mixed'")
+@click.option('--debug', default=True, help="If in debug mode, the intermediate images would be plotted")
+def convert(json,
+            pcd,
+            depth,
+            use_bg,
+            bg_path,
+            method,
+            debug):
     """Convert JSON to PCD file from command line"""
     json_converter = json2pcd.Converter()
     json_converter.load_json(Path(json))
@@ -43,15 +50,15 @@ def convert(json, pcd, depth, use_bg, bg_path, method):
         json_converter.export_pcd(Path(pcd), use_bg=use_bg)
         print(f"Successfully converted point cloud data from {json} to {pcd}")
     if depth:
-        if bg_path and method == 'static':
+        if bg_path and (method == 'static' or method == 'mixed'):
             bg_data = Path(bg_path, 'bg.npy')
             std_data = Path(bg_path, 'std.npy')
             if bg_data.exists() and std_data.exists():
                 # if background data exists, load
                 with bg_data.open(mode='rb'):
-                    bg = np.load(bg_data.name)
+                    bg = np.load(bg_data)
                 with std_data.open(mode='rb'):
-                    bg_std = np.load(std_data.name)
+                    bg_std = np.load(std_data)
             else:
                 bg_files = Path(bg_path).glob("*.json")
                 bg_converter = json2pcd.Converter()
@@ -62,12 +69,12 @@ def convert(json, pcd, depth, use_bg, bg_path, method):
                 # if not, learn it
                 bg, bg_std = learning_bg(bg_list)
                 with bg_data.open(mode='w'):
-                    np.save(bg_data.name, bg)
+                    np.save(bg_data, bg)
                 with std_data.open(mode='w'):
-                    np.save(std_data.name, bg_std)
+                    np.save(std_data, bg_std)
             json_converter.set_background(bg, bg_std)
             print("Static background is loaded to the converter!")
-        json_converter.export_depth(Path(depth), use_bg=use_bg, method=method)
+        json_converter.export_depth(Path(depth), use_bg=use_bg, method=method, debug=debug)
         print(f"Successfully converted depth data from {json} to {depth}")
 
 

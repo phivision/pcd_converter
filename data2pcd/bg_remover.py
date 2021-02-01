@@ -122,6 +122,10 @@ def remove_rgbd_bg(rgb_image: np.ndarray,
                 print(f"median floor error in row {i}: {np.median(floor_diff)}")
             floor_idx = floor_diff > 0
             mask[i, floor_idx] = 0
+        print("floor removed")
+    if debug:
+        pylab.imshow(mask)
+        pylab.show()
     mask = post_processing_mask(mask, face_centers[0])
     if debug:
         pylab.imshow(mask)

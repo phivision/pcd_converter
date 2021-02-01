@@ -23,7 +23,7 @@ import base64
 import open3d as o3d
 import json
 import numpy as np
-import matplotlib.pyplot as plt
+import pylab
 import rembg.bg as bg
 from .bg_remover import remove_rgbd_bg, subtract_bg
 import io
@@ -131,26 +131,47 @@ class Converter:
         else:
             raise ValueError("Depth map data is not ready, cannot process!")
 
-    def generate_mask(self, method='u2net'):
-        """Use U2NET to generate mask for background removal"""
+    def generate_mask(self, method='u2net', debug=False):
+        """Use U2NET or CV algo to generate mask for background removal"""
         if method == 'u2net':
             model = bg.get_model("u2net")
             mask = bg.detect.predict(model, self.image_float).convert("L").resize((self.image_float.shape[1],
                                                                                    self.image_float.shape[0]),
                                                                                   Image.LANCZOS)
             self.mask = np.asarray(mask) / 255.0
+            if debug:
+                pylab.figure()
+                pylab.imshow(self.image_float)
+                pylab.figure()
+                pylab.imshow(self.mask)
         elif method == 'dynamic':
-            self.mask = remove_rgbd_bg(np.array(self.image.convert("RGB")), self.depth_map)
+            self.mask = remove_rgbd_bg(np.array(self.image.convert("RGB")),
+                                       self.depth_map,
+                                       debug=debug)
         elif method == 'static':
             if self._background is not None and self._bg_std is not None:
                 self.mask = subtract_bg(np.array(self.image.convert("RGB")),
                                         self.depth_map,
                                         self._background,
-                                        self._bg_std)
+                                        self._bg_std,
+                                        debug=debug)
             else:
                 raise(ValueError("Do not has background data to process input image!"))
+        elif method == 'mixed':
+            if self._background is not None and self._bg_std is not None:
+                stat_mask = subtract_bg(np.array(self.image.convert("RGB")),
+                                        self.depth_map,
+                                        self._background,
+                                        self._bg_std,
+                                        debug=debug)
+                dyna_mask = remove_rgbd_bg(np.array(self.image.convert("RGB")),
+                                           self.depth_map,
+                                           debug=debug)
+                self.mask = (stat_mask + dyna_mask) / 2.0
         else:
             raise(ValueError('Do not support this type of method'))
+        if debug:
+            pylab.show()
 
     def load_json(self, input_file: Path) -> None:
         """Convert JSON input file to PCD output file
@@ -184,7 +205,8 @@ class Converter:
     def export_depth(self, output_file: Path,
                      norm=True,
                      use_bg=True,
-                     method='u2net'):
+                     method='u2net',
+                     debug=False):
         """Export depth as Numpy binary file
 
         Args:
@@ -192,13 +214,14 @@ class Converter:
             norm: if normalize the center of human body to the center of target max depth
             use_bg: if true, keep background, if false, remove background
             method: method to remove background
+            debug: if in debug mode, plotting intermediate images
 
         """
         with output_file.open(mode='w') as depth_file:
             # remove human background and export depth of only human area
             if not use_bg:
                 bg_removed = self.depth_map.copy()
-                self.generate_mask(method=method)
+                self.generate_mask(method=method, debug=debug)
                 if norm:
                     depth_shift = TARGET_MAX_DEPTH/2.0 - np.mean(bg_removed[self.mask >= self.MASK_THRESHOLD])
                     bg_removed[self.mask >= self.MASK_THRESHOLD] += depth_shift
@@ -254,22 +277,20 @@ class Converter:
         # for debugging only
         if self.image is not None:
             if depth:
-                plt.imshow(self.depth_map)
-                plt.title(name)
+                pylab.figure()
+                pylab.imshow(self.depth_map)
+                pylab.title(name)
                 print(f"The size of depth map: {self.depth_map.shape}")
-                plt.show()
             if confidence:
-                plt.imshow(self.confidence_map)
-                plt.title(name)
+                pylab.imshow(self.confidence_map)
+                pylab.title(name)
                 print(f"The size of confidence map: {self.confidence_map.shape}")
-                plt.show()
             if image:
-                plt.imshow(self.image_float)
-                plt.title(name)
+                pylab.imshow(self.image_float)
+                pylab.title(name)
                 print(f"The size of rgb image: {self.image_float.shape}")
-                plt.show()
             if self.mask and mask:
-                plt.imshow(self.mask)
-                plt.title(name)
+                pylab.imshow(self.mask)
+                pylab.title(name)
                 print(f"The size of background mask: {self.mask.shape}")
-                plt.show()
+            pylab.show()

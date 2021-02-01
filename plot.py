@@ -46,8 +46,8 @@ def plot(json, depth, image, confidence, mask):
                                      confidence=confidence,
                                      mask=mask)
     else:
-        json_converter.load_json(Path(json))
-        json_converter.visualize(name=str(json.stem),
+        json_converter.load_json(json_path)
+        json_converter.visualize(name=str(json_path.stem),
                                  depth=depth,
                                  image=image,
                                  confidence=confidence,
